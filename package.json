@@ -3,6 +3,13 @@
   "description": "A tab group interface for Directus",
   "icon": "extension",
   "version": "1.0.0",
+  "author": "Sofia Ringström",
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sofiaringstrom/directus-extension-flat-tabs-interface.git"
+  },
+  "homepage": "https://github.com/sofiaringstrom/directus-extension-flat-tabs-interface",
   "keywords": [
     "directus",
     "directus-extension",
