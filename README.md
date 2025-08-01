@@ -80,26 +80,6 @@ Make sure you've set `EXTENSIONS_AUTO_RELOAD` in your `.env` file.
 
 You might need to restart your Directus instance for the extension to be loaded.
 
-#### Link the extension
-
-You can link the extension to your project (if you don't want to put it directly in the `extensions` directory) by running:
-
-```bash
-npm run link /path/to/your/directus-instance/extensions
-```
-
-This will create a symlink to the extension in your project's `extensions` directory.
-
-#### Unlink the extension
-
-You can unlink the extension by running:
-
-```bash
-rm /path/to/your/directus-instance/extensions/directus-extension-flat-tabs-interface -type l
-```
-
-This will remove the symlink from your project's `extensions` directory.
-
 ### Building
 
 ```bash
