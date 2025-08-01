@@ -13,8 +13,12 @@ A tab group interface for Directus.
 
 ## Installation
 
+Install the extension from the Directus Marketplace. See the [Official Guide](https://docs.directus.io/extensions/installing-extensions.html) for more information.
+
+Or if you prefer to install manually:
+
 ```bash
-npm install @sofiaringstrom/directus-extension-flat-tabs-interface
+npm install directus-extension-flat-tabs-interface
 ```
 
 Marketplace?
