@@ -2,9 +2,9 @@
 
 A tab group interface for Directus.
 
-<img src="https://raw.githubusercontent.com/sofiaringstrom/directus-extension-flat-tabs-interface/refs/heads/main/docs/screenshot.png" width="100%" height="auto">
+<img src="https://raw.githubusercontent.com/sofiaringstrom/directus-extension-flat-tabs-interface/refs/heads/main/docs/screenshot.png" width="100%" height="auto" style="border: 1px solid #d4d4d8; border-radius: 12px;">
 
-<img src="https://raw.githubusercontent.com/sofiaringstrom/directus-extension-flat-tabs-interface/refs/heads/main/docs/screenshot-data-model.png" width="100%" height="auto">
+<img src="https://raw.githubusercontent.com/sofiaringstrom/directus-extension-flat-tabs-interface/refs/heads/main/docs/screenshot-data-model.png" width="100%" height="auto" style="border: 1px solid #d4d4d8; border-radius: 12px;">
 
 ## Features
 
@@ -48,11 +48,11 @@ My Collection
 
 - **Align Tabs**: Controls the horizontal alignment of the tab list
 
-  - `left`: Tabs aligned to the left (default)
-  - `right`: Tabs aligned to the right
-  - `center`: Tabs centered
-  - `between`: Tabs aligned to the left and right
-  - `stretch`: Tabs stretched to fill the full width
+  - `Left`: Tabs aligned to the left (default)
+  - `Right`: Tabs aligned to the right
+  - `Center`: Tabs centered
+  - `Between`: Tabs aligned to the left and right
+  - `Stretch`: Tabs stretched to fill the full width
 
 ## Development
 
