@@ -1,4 +1,4 @@
-# Directus Flat Tabs Interface
+# Directus Flat Tabs Interface ![NPM Version](https://img.shields.io/npm/v/directus-extension-flat-tabs-interface)
 
 A tab group interface for Directus.
 
