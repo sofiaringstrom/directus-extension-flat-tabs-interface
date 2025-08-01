@@ -1,21 +1,34 @@
+<!--
+  Flat Tabs Interface Component
+  
+  This component creates a tabbed interface for Directus group fields, organizing
+  form fields into logical sections with tabs. It automatically handles validation
+  error navigation by switching to the appropriate tab when errors occur.
+  
+  Features:
+  - Tabbed navigation for group fields
+  - Automatic validation error tab switching
+  - Responsive tab alignment options
+  - Batch mode support
+  - Loading states
+-->
 <template>
   <div class="flat-tabs-interface">
     <TabsRoot
-      :default-value="sections[0].id"
-      :value="activeTab"
+      v-model="activeTab"
       :unmount-on-hide="false"
-      @update:value="handleTabChange"
+      @update:modelValue="(value) => handleTabChange(value)"
       class="tabs-root"
       :class="`align-${align}`"
     >
       <TabsList class="tabs-list">
         <TabsTrigger
-          v-for="section in sections"
-          :key="section.id"
-          :value="section.id"
+          v-for="groupField in groupFields"
+          :key="groupField.field"
+          :value="groupField.field"
           class="tabs-trigger"
         >
-          {{ section.title }}
+          {{ groupField.name }}
         </TabsTrigger>
         <TabsIndicator class="tabs-indicator">
           <div class="indicator-bar" />
@@ -23,26 +36,29 @@
       </TabsList>
 
       <TabsContent
-        v-for="section in sections"
-        :key="section.id"
-        :value="section.id"
+        v-for="groupField in groupFields"
+        :key="groupField.field"
+        :value="groupField.field"
         class="tabs-content"
       >
         <div class="tab-fields">
-          <v-form
-            :initial-values="actualValues"
-            :fields="section.fields"
-            :model-value="actualValues"
-            :primary-key="'+'"
-            :group="section.id"
-            :validation-errors="[]"
-            :loading="false"
-            :batch-mode="false"
-            :disabled="false"
-            :show-no-visible-fields="false"
-            :show-validation-errors="false"
-            @update:model-value="(values) => emit('input', values)"
-            class="tab-form"
+          <Fields
+            v-if="activeTab === groupField.field"
+            :initial-values="initialValues"
+            :field="groupField"
+            :fields="fields"
+            :values="groupValues"
+            :primary-key="primaryKey"
+            :group="field.meta?.field ?? ''"
+            :disabled="disabled"
+            :batch-mode="batchMode"
+            :batch-active-fields="batchActiveFields"
+            :loading="loading"
+            :validation-errors="validationErrors"
+            :badge="badge"
+            :raw-editor-enabled="rawEditorEnabled"
+            :direction="direction"
+            @apply="$emit('apply', $event)"
           />
         </div>
       </TabsContent>
@@ -50,7 +66,8 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
+  import type { Field, ValidationError } from "@directus/types";
   import {
     TabsContent,
     TabsIndicator,
@@ -58,73 +75,208 @@
     TabsRoot,
     TabsTrigger,
   } from "reka-ui";
-  import { defineEmits, defineProps, ref, watch, useAttrs } from "vue";
-  import { useGroupSection } from "./composables/use-group-section";
+  import { defineEmits, defineProps, ref, watch } from "vue";
+  import { isEqual } from "lodash-es";
+  import Fields from "./Fields.vue";
 
-  const props = defineProps({
-    value: {
-      type: Object,
-      default: () => ({}),
-    },
-    align: {
-      type: String,
-      default: "left",
-    },
-    // Directus group fields will be passed as children
-    children: {
-      type: Array,
-      default: () => [],
-    },
-    // Alternative props that Directus might pass
-    fields: {
-      type: Array,
-      default: () => [],
-    },
-    values: {
-      type: Object,
-      default: () => ({}),
-    },
-  });
+  /**
+   * Component props interface for the Flat Tabs Interface
+   *
+   * @interface FlatTabsInterfaceProps
+   * @property {Field} field - The main field configuration (typically a group field)
+   * @property {Field[]} fields - All available fields in the form
+   * @property {Record<string, unknown>} values - Current form values
+   * @property {Record<string, unknown>} initialValues - Initial form values
+   * @property {boolean} [disabled] - Whether the interface is disabled
+   * @property {boolean} [batchMode] - Whether batch editing mode is active
+   * @property {string[]} [batchActiveFields] - Fields active in batch mode
+   * @property {string|number} primaryKey - Primary key of the current record
+   * @property {boolean} [loading] - Whether the interface is in loading state
+   * @property {ValidationError[]} [validationErrors] - Validation errors to display
+   * @property {string} [badge] - Badge text to display
+   * @property {boolean} [rawEditorEnabled] - Whether raw editor is enabled
+   * @property {string} [direction] - Text direction (ltr/rtl)
+   * @property {string} [align] - Tab alignment (left, right, center, between, stretch)
+   */
 
-  const emit = defineEmits(["input"]);
+  const props = withDefaults(
+    defineProps<{
+      field: Field;
+      fields: Field[];
+      values: Record<string, unknown>;
+      initialValues: Record<string, unknown>;
+      disabled?: boolean;
+      batchMode?: boolean;
+      batchActiveFields?: string[];
+      primaryKey: string | number;
+      loading?: boolean;
+      validationErrors?: ValidationError[];
+      badge?: string;
+      rawEditorEnabled?: boolean;
+      direction?: string;
+      align?: string;
+    }>(),
+    {
+      batchActiveFields: () => [],
+      validationErrors: () => [],
+      align: "left",
+    }
+  );
 
-  const attrs = useAttrs();
+  /**
+   * Component emits interface
+   *
+   * @emits {apply} - Emitted when form values are applied/changed
+   * @param {Record<string, unknown>} value - The updated form values
+   */
+  defineEmits<{
+    (e: "apply", value: Record<string, unknown>): void;
+  }>();
 
-  // Try to get the actual field data from attrs - use the same approach as original extension
-  const actualFields = attrs.fields || props.fields || props.children || [];
-  const actualValues = attrs.values || props.values || props.value || {};
+  /** Currently active tab identifier */
+  const activeTab = ref<string | number | undefined>(undefined);
 
-  // Use the group section composable
-  const { sections } = useGroupSection({
-    children: actualFields,
-    value: actualValues,
-  });
+  /** Computed group fields and values from the useComputedGroup composable */
+  const { groupFields, groupValues } = useComputedGroup();
 
-  // Track active tab
-  const activeTab = ref(null);
-
-  // Set initial active tab when sections are available
+  /**
+   * Watcher for validation errors - automatically switches to the tab containing
+   * the field with the first validation error
+   */
   watch(
-    sections,
-    (newSections) => {
-      if (newSections.length > 0) {
-        activeTab.value = newSections[0].id;
+    () => props.validationErrors,
+    (newVal, oldVal) => {
+      if (!props.validationErrors || props.validationErrors.length === 0)
+        return;
+      if (isEqual(newVal, oldVal)) return;
+
+      const firstError = props.validationErrors[0];
+      const tabGroupForError = findTabGroupForField(firstError.field);
+      if (tabGroupForError) {
+        activeTab.value = tabGroupForError;
+      }
+    }
+  );
+
+  /**
+   * Watcher to set the initial active tab when group fields are available
+   * Sets the first tab as active by default
+   */
+  watch(
+    () => groupFields,
+    (newGroupFields) => {
+      if (newGroupFields.value.length > 0) {
+        activeTab.value = newGroupFields.value[0].field;
       }
     },
     { immediate: true }
   );
 
-  // Handle tab change
+  /**
+   * Handles tab change events from the tabs component
+   *
+   * @param {string|number} value - The identifier of the newly selected tab
+   */
   function handleTabChange(value) {
     activeTab.value = value;
+  }
+
+  /**
+   * Filters fields to only include those that belong to the current group
+   *
+   * @returns {Field[]} Array of fields that belong to the current group field
+   */
+  function limitFields() {
+    return props.fields.filter(
+      (field) => field.meta?.group === props.field.meta?.field
+    );
+  }
+
+  /**
+   * Recursively traces a field to its correct tab group
+   *
+   * This function finds which tab contains a specific field by following
+   * the field's group hierarchy. It starts with the field's immediate group
+   * and recursively checks parent groups until it finds a tab group.
+   *
+   * @param {string} fieldName - The name of the field to trace
+   * @returns {string|null} The tab group identifier, or null if not found
+   *
+   * @example
+   * ```typescript
+   * // If field "title" belongs to group "class_group_1" which belongs to tab "personal_info"
+   * const tabGroup = findTabGroupForField("title"); // Returns "personal_info"
+   * ```
+   */
+  function findTabGroupForField(fieldName: string): string | null {
+    // First, find the field in props.fields
+    const field = props.fields.find((f) => f.field === fieldName);
+    if (!field) return null;
+
+    // Get the group of this field
+    const fieldGroup = field.meta?.group;
+    if (!fieldGroup) return null;
+
+    // Check if this group is one of the tab groups
+    const isTabGroup = groupFields.value.some(
+      (tabField) => tabField.field === fieldGroup
+    );
+    if (isTabGroup) {
+      return fieldGroup;
+    }
+
+    // If not a tab group, recursively find the parent group
+    return findTabGroupForField(fieldGroup);
+  }
+
+  /**
+   * Composable function that manages group fields and their values
+   *
+   * This function creates reactive references for group fields and their values,
+   * with watchers that update them when the underlying props change. It ensures
+   * that the component stays in sync with the parent form's state.
+   *
+   * @returns {Object} Object containing groupFields and groupValues refs
+   * @returns {Ref<Field[]>} groupFields - Reactive array of fields in the current group
+   * @returns {Ref<Record<string, any>>} groupValues - Reactive object of current form values
+   */
+  function useComputedGroup() {
+    const groupFields = ref<Field[]>(limitFields());
+    const groupValues = ref<Record<string, any>>({});
+
+    // Watch for changes in the fields prop and update group fields accordingly
+    watch(
+      () => props.fields,
+      () => {
+        const newVal = limitFields();
+
+        if (!isEqual(groupFields.value, newVal)) {
+          groupFields.value = newVal;
+        }
+      }
+    );
+
+    // Watch for changes in the values prop and update group values accordingly
+    watch(
+      () => props.values,
+      (newVal) => {
+        if (!isEqual(groupValues.value, newVal)) {
+          groupValues.value = newVal;
+        }
+      }
+    );
+
+    return { groupFields, groupValues };
   }
 </script>
 
 <style scoped>
+  /* Main container for the flat tabs interface */
   .flat-tabs-interface {
     width: 100%;
   }
 
+  /* Tab navigation list container */
   .tabs-list {
     position: relative;
     display: flex;
@@ -134,6 +286,7 @@
     margin-bottom: 16px;
   }
 
+  /* Tab alignment options */
   .align-left .tabs-list {
     justify-content: flex-start;
   }
@@ -158,6 +311,7 @@
     }
   }
 
+  /* Active tab indicator with smooth animations */
   .tabs-indicator {
     position: absolute;
     bottom: 0;
@@ -176,6 +330,7 @@
     }
   }
 
+  /* Individual tab trigger buttons with hover and focus states */
   .tabs-trigger {
     background-color: transparent;
     padding: 10px 16px;
@@ -208,6 +363,7 @@
     }
   }
 
+  /* Tab content container - hides inactive tabs */
   .tabs-content {
     flex-grow: 1;
     outline: none;
