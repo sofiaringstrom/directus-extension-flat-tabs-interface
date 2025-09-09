@@ -131,7 +131,7 @@ export function useGroupSection({
  * // Returns all fields that belong to the "personal_info" group
  * ```
  */
-function getFieldsForGroup(
+export function getFieldsForGroup(
   group: undefined | string,
   passed: string[] = [],
   groupFields: Field[]

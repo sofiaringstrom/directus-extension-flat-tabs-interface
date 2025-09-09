@@ -78,6 +78,7 @@
   import { defineEmits, defineProps, ref, watch } from "vue";
   import { isEqual } from "lodash-es";
   import Fields from "./Fields.vue";
+  import { getFieldsForGroup } from "./composables/use-group-section";
 
   /**
    * Component props interface for the Flat Tabs Interface
@@ -257,16 +258,62 @@
     );
 
     // Watch for changes in the values prop and update group values accordingly
+    // Filter values to only include those that belong to the current group
     watch(
       () => props.values,
       (newVal) => {
-        if (!isEqual(groupValues.value, newVal)) {
-          groupValues.value = newVal;
+        const filteredValues = filterValuesForGroup(newVal, groupFields.value);
+        if (!isEqual(groupValues.value, filteredValues)) {
+          groupValues.value = filteredValues;
         }
       }
     );
 
     return { groupFields, groupValues };
+  }
+
+  /**
+   * Filters form values to only include those that belong to the current group
+   *
+   * @param {Record<string, any>} values - All form values
+   * @param {Field[]} fields - Fields in the current group
+   * @returns {Record<string, any>} Filtered values for the current group
+   */
+  function filterValuesForGroup(
+    values: Record<string, any>,
+    fields: Field[]
+  ): Record<string, any> {
+    if (!values || !fields) return {};
+
+    const filteredValues: Record<string, any> = {};
+
+    // Get all field names that belong to this group (including nested fields)
+    const fieldNames = new Set<string>();
+
+    fields.forEach((field) => {
+      fieldNames.add(field.field);
+
+      // If this is a group field, also add all its nested fields
+      if (field.meta?.special?.includes("group")) {
+        const nestedFields = getFieldsForGroup(
+          field.meta?.field,
+          [],
+          props.fields
+        );
+        nestedFields.forEach((nestedField) => {
+          fieldNames.add(nestedField.field);
+        });
+      }
+    });
+
+    // Filter values to only include those for fields in this group
+    Object.keys(values).forEach((key) => {
+      if (fieldNames.has(key)) {
+        filteredValues[key] = values[key];
+      }
+    });
+
+    return filteredValues;
   }
 </script>
 

@@ -1,6 +1,6 @@
 <template>
   <v-form
-    :initial-values="initialValues"
+    :initial-values="filteredInitialValues"
     :fields="fieldsInSection"
     :model-value="values"
     :primary-key="primaryKey"
@@ -18,7 +18,7 @@
 
 <script setup lang="ts">
   import type { Field, ValidationError } from "@directus/types";
-  import { toRefs } from "vue";
+  import { computed, toRefs } from "vue";
   import { useGroupSection } from "./composables/use-group-section";
 
   const props = withDefaults(
@@ -45,4 +45,30 @@
   );
 
   const { fieldsInSection } = useGroupSection(toRefs(props));
+
+  /**
+   * Computed property that filters initial values to only include those
+   * that belong to the fields in this section. This ensures that draft
+   * values are properly displayed for the correct fields.
+   */
+  const filteredInitialValues = computed(() => {
+    if (!props.initialValues || !fieldsInSection.value) return {};
+
+    const filteredValues: Record<string, unknown> = {};
+    const fieldNames = new Set<string>();
+
+    // Get all field names that belong to this section
+    fieldsInSection.value.forEach((field) => {
+      fieldNames.add(field.field);
+    });
+
+    // Filter initial values to only include those for fields in this section
+    Object.keys(props.initialValues).forEach((key) => {
+      if (fieldNames.has(key)) {
+        filteredValues[key] = props.initialValues[key];
+      }
+    });
+
+    return filteredValues;
+  });
 </script>
