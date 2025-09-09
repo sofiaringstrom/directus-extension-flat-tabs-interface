@@ -1,5 +1,6 @@
 <template>
   <v-form
+    :key="`${field.field}-${primaryKey}`"
     :initial-values="filteredInitialValues"
     :fields="fieldsInSection"
     :model-value="values"
