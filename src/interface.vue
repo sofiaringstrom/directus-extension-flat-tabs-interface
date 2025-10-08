@@ -164,10 +164,10 @@
    * Sets the first tab as active by default
    */
   watch(
-    () => groupFields,
+    () => groupFields.value,
     (newGroupFields) => {
-      if (newGroupFields.value.length > 0) {
-        activeTab.value = newGroupFields.value[0].field;
+      if (newGroupFields.length > 0) {
+        activeTab.value = newGroupFields[0].field;
       }
     },
     { immediate: true }
