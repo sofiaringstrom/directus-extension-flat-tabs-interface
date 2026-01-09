@@ -23,7 +23,7 @@
     >
       <TabsList class="tabs-list">
         <TabsTrigger
-          v-for="groupField in groupFields"
+          v-for="groupField in visibleGroupFields"
           :key="groupField.field"
           :value="groupField.field"
           class="tabs-trigger"
@@ -36,7 +36,7 @@
       </TabsList>
 
       <TabsContent
-        v-for="groupField in groupFields"
+        v-for="groupField in visibleGroupFields"
         :key="groupField.field"
         :value="groupField.field"
         class="tabs-content"
@@ -76,7 +76,7 @@
     TabsRoot,
     TabsTrigger,
   } from "reka-ui";
-  import { ref, watch } from "vue";
+  import { ref, watch, computed } from "vue";
   import { isEqual } from "lodash-es";
   import Fields from "./Fields.vue";
   import { getFieldsForGroup } from "./composables/use-group-section";
@@ -142,6 +142,23 @@
   const { groupFields, groupValues } = useComputedGroup();
 
   /**
+   * Computed property that filters out empty tab groups.
+   * A tab group is considered empty if it has no nested fields inside it.
+   */
+  const visibleGroupFields = computed(() => {
+    return groupFields.value.filter((groupField) => {
+      // Get nested fields for this group
+      const nestedFields = getFieldsForGroup(
+        groupField.meta?.field,
+        [],
+        props.fields
+      );
+      // Only include groups that have at least one nested field
+      return nestedFields.length > 0;
+    });
+  });
+
+  /**
    * Watcher for validation errors - automatically switches to the tab containing
    * the field with the first validation error
    */
@@ -161,11 +178,11 @@
   );
 
   /**
-   * Watcher to set the initial active tab when group fields are available
-   * Sets the first tab as active by default
+   * Watcher to set the initial active tab when visible group fields are available
+   * Sets the first non-empty tab as active by default
    */
   watch(
-    () => groupFields.value,
+    () => visibleGroupFields.value,
     (newGroupFields) => {
       if (newGroupFields.length > 0) {
         activeTab.value = newGroupFields[0].field;
