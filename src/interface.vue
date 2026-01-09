@@ -48,6 +48,7 @@
             :field="groupField"
             :fields="fields"
             :values="groupValues"
+            :all-values="values"
             :primary-key="primaryKey"
             :group="field.meta?.field ?? ''"
             :disabled="disabled"
@@ -75,7 +76,7 @@
     TabsRoot,
     TabsTrigger,
   } from "reka-ui";
-  import { defineEmits, defineProps, ref, watch } from "vue";
+  import { ref, watch } from "vue";
   import { isEqual } from "lodash-es";
   import Fields from "./Fields.vue";
   import { getFieldsForGroup } from "./composables/use-group-section";
@@ -266,7 +267,8 @@
         if (!isEqual(groupValues.value, filteredValues)) {
           groupValues.value = filteredValues;
         }
-      }
+      },
+      { immediate: true }
     );
 
     return { groupFields, groupValues };
