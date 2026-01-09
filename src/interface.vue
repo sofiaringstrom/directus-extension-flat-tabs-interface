@@ -143,9 +143,13 @@
 
   /**
    * Computed property that filters out empty tab groups.
-   * A tab group is considered empty if it has no nested fields inside it.
+   * A tab group is considered empty if it has no visible nested fields inside it.
+   * This accounts for both raw empty groups and conditionally hidden fields.
    */
   const visibleGroupFields = computed(() => {
+    // Merge initialValues with current values to get complete state for condition evaluation
+    const allValues = { ...props.initialValues, ...props.values };
+
     return groupFields.value.filter((groupField) => {
       // Get nested fields for this group
       const nestedFields = getFieldsForGroup(
@@ -153,10 +157,188 @@
         [],
         props.fields
       );
-      // Only include groups that have at least one nested field
-      return nestedFields.length > 0;
+
+      // Filter to only visible fields (not hidden by conditions)
+      const visibleNestedFields = nestedFields.filter((field) =>
+        isFieldVisible(field, allValues)
+      );
+
+      // Only include groups that have at least one visible nested field
+      return visibleNestedFields.length > 0;
     });
   });
+
+  /**
+   * Determines if a field is visible based on its meta.hidden property
+   * and any conditional visibility rules.
+   *
+   * @param {Field} field - The field to check visibility for
+   * @param {Record<string, any>} values - Current form values for condition evaluation
+   * @returns {boolean} True if the field should be visible
+   */
+  function isFieldVisible(field: Field, values: Record<string, any>): boolean {
+    // If explicitly hidden in meta, not visible
+    if (field.meta?.hidden === true) return false;
+
+    // If no conditions, it's visible
+    const conditions = field.meta?.conditions;
+    if (!conditions || conditions.length === 0) return true;
+
+    // Evaluate each condition
+    for (const condition of conditions) {
+      if (!condition.rule) continue;
+
+      try {
+        // Check if the rule matches current values
+        if (evaluateConditionRule(condition.rule, values)) {
+          // If this condition says hidden=true, field is not visible
+          if (condition.hidden === true) return false;
+        }
+      } catch {
+        // If evaluation fails, assume visible
+        continue;
+      }
+    }
+
+    // Default: visible
+    return true;
+  }
+
+  /**
+   * Evaluates a Directus filter rule against current values.
+   * Supports common operators like _eq, _neq, _null, _nnull, _in, _nin, _empty, _nempty.
+   *
+   * @param {Record<string, any>} rule - The filter rule to evaluate
+   * @param {Record<string, any>} values - Current form values
+   * @returns {boolean} True if the rule matches
+   */
+  function evaluateConditionRule(
+    rule: Record<string, any>,
+    values: Record<string, any>
+  ): boolean {
+    if (!rule || typeof rule !== "object") return false;
+
+    for (const [field, operators] of Object.entries(rule)) {
+      // Handle logical operators
+      if (field === "_and") {
+        if (
+          !(operators as any[]).every((r) => evaluateConditionRule(r, values))
+        ) {
+          return false;
+        }
+        continue;
+      }
+      if (field === "_or") {
+        if (
+          !(operators as any[]).some((r) => evaluateConditionRule(r, values))
+        ) {
+          return false;
+        }
+        continue;
+      }
+
+      const fieldValue = values[field];
+
+      // Direct equality check (shorthand)
+      if (typeof operators !== "object" || operators === null) {
+        if (fieldValue !== operators) return false;
+        continue;
+      }
+
+      // Evaluate each operator
+      for (const [op, expected] of Object.entries(operators)) {
+        switch (op) {
+          case "_eq":
+            if (fieldValue !== expected) return false;
+            break;
+          case "_neq":
+            if (fieldValue === expected) return false;
+            break;
+          case "_null":
+            if (expected === true && fieldValue != null) return false;
+            if (expected === false && fieldValue == null) return false;
+            break;
+          case "_nnull":
+            if (expected === true && fieldValue == null) return false;
+            if (expected === false && fieldValue != null) return false;
+            break;
+          case "_in":
+            if (!Array.isArray(expected) || !expected.includes(fieldValue))
+              return false;
+            break;
+          case "_nin":
+            if (Array.isArray(expected) && expected.includes(fieldValue))
+              return false;
+            break;
+          case "_empty": {
+            const isEmpty =
+              fieldValue === null ||
+              fieldValue === undefined ||
+              fieldValue === "" ||
+              (Array.isArray(fieldValue) && fieldValue.length === 0);
+            if (expected === true && !isEmpty) return false;
+            if (expected === false && isEmpty) return false;
+            break;
+          }
+          case "_nempty": {
+            const isNotEmpty =
+              fieldValue !== null &&
+              fieldValue !== undefined &&
+              fieldValue !== "" &&
+              !(Array.isArray(fieldValue) && fieldValue.length === 0);
+            if (expected === true && !isNotEmpty) return false;
+            if (expected === false && isNotEmpty) return false;
+            break;
+          }
+          case "_contains":
+            if (
+              typeof fieldValue !== "string" ||
+              !fieldValue.includes(expected as string)
+            )
+              return false;
+            break;
+          case "_ncontains":
+            if (
+              typeof fieldValue === "string" &&
+              fieldValue.includes(expected as string)
+            )
+              return false;
+            break;
+          case "_starts_with":
+            if (
+              typeof fieldValue !== "string" ||
+              !fieldValue.startsWith(expected as string)
+            )
+              return false;
+            break;
+          case "_ends_with":
+            if (
+              typeof fieldValue !== "string" ||
+              !fieldValue.endsWith(expected as string)
+            )
+              return false;
+            break;
+          case "_gt":
+            if (!(fieldValue > (expected as number))) return false;
+            break;
+          case "_gte":
+            if (!(fieldValue >= (expected as number))) return false;
+            break;
+          case "_lt":
+            if (!(fieldValue < (expected as number))) return false;
+            break;
+          case "_lte":
+            if (!(fieldValue <= (expected as number))) return false;
+            break;
+          default:
+            // Unknown operator, skip
+            break;
+        }
+      }
+    }
+
+    return true;
+  }
 
   /**
    * Watcher for validation errors - automatically switches to the tab containing
@@ -178,13 +360,24 @@
   );
 
   /**
-   * Watcher to set the initial active tab when visible group fields are available
-   * Sets the first non-empty tab as active by default
+   * Watcher to set the active tab when visible group fields change.
+   * Only changes the active tab if:
+   * - No tab is currently active, OR
+   * - The currently active tab is no longer visible
+   * This prevents resetting the active tab when new tabs become visible.
    */
   watch(
     () => visibleGroupFields.value,
     (newGroupFields) => {
-      if (newGroupFields.length > 0) {
+      if (newGroupFields.length === 0) return;
+
+      // Check if current active tab is still in the visible list
+      const currentTabStillVisible = newGroupFields.some(
+        (field) => field.field === activeTab.value
+      );
+
+      // Only set to first tab if no active tab or current tab is no longer visible
+      if (!activeTab.value || !currentTabStillVisible) {
         activeTab.value = newGroupFields[0].field;
       }
     },
