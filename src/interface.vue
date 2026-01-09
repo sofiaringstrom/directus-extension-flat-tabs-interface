@@ -142,15 +142,22 @@
   const { groupFields, groupValues } = useComputedGroup();
 
   /**
-   * Computed property that filters out empty tab groups.
-   * A tab group is considered empty if it has no visible nested fields inside it.
-   * This accounts for both raw empty groups and conditionally hidden fields.
+   * Computed property that filters out hidden or empty tab groups.
+   * A tab group is hidden if:
+   * - The tab group itself is conditionally hidden, OR
+   * - It has no visible nested fields inside it
+   * This accounts for conditionally hidden tabs, raw empty groups, and conditionally hidden fields.
    */
   const visibleGroupFields = computed(() => {
     // Merge initialValues with current values to get complete state for condition evaluation
     const allValues = { ...props.initialValues, ...props.values };
 
     return groupFields.value.filter((groupField) => {
+      // First check if the tab group itself is visible
+      if (!isFieldVisible(groupField, allValues)) {
+        return false;
+      }
+
       // Get nested fields for this group
       const nestedFields = getFieldsForGroup(
         groupField.meta?.field,
