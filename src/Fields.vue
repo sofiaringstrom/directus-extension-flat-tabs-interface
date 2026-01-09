@@ -1,9 +1,9 @@
 <template>
   <v-form
     :key="`${field.field}-${primaryKey}`"
-    :initial-values="filteredInitialValues"
+    :initial-values="combinedInitialValues"
     :fields="fieldsInSection"
-    :model-value="filteredValues"
+    :model-value="combinedValues"
     :primary-key="primaryKey"
     :group="group"
     :validation-errors="validationErrors"
@@ -56,8 +56,7 @@
 
   /**
    * Computed property that filters initial values to only include those
-   * that belong to the fields in this section. This ensures that draft
-   * values are properly displayed for the correct fields.
+   * that belong to the fields in this section.
    */
   const filteredInitialValues = computed(() => {
     if (!props.initialValues || !fieldsInSection.value) return {};
@@ -65,12 +64,10 @@
     const filteredValues: Record<string, unknown> = {};
     const fieldNames = new Set<string>();
 
-    // Get all field names that belong to this section
     fieldsInSection.value.forEach((field) => {
       fieldNames.add(field.field);
     });
 
-    // Filter initial values to only include those for fields in this section
     Object.keys(props.initialValues).forEach((key) => {
       if (fieldNames.has(key)) {
         filteredValues[key] = props.initialValues[key];
@@ -78,6 +75,15 @@
     });
 
     return filteredValues;
+  });
+
+  /**
+   * Computed property that provides the FULL initial values to v-form.
+   * This is needed for template variable resolution (e.g., {{id}} in button links).
+   * The v-form needs access to all item data, not just fields in this section.
+   */
+  const combinedInitialValues = computed(() => {
+    return props.initialValues || {};
   });
 
   /**
@@ -104,6 +110,20 @@
   });
 
   /**
+   * Computed property that provides combined values to v-form.
+   * Merges all initial values with current edits, ensuring template variables
+   * like {{id}} can be resolved while also showing current edits.
+   */
+  const combinedValues = computed(() => {
+    // Start with full initial values (for template resolution like {{id}})
+    // Then overlay with current edits
+    return {
+      ...props.initialValues,
+      ...props.allValues,
+    };
+  });
+
+  /**
    * Handles v-form model updates by building the complete set of edits.
    * - Fields outside this tab are preserved from allValues
    * - Fields inside this tab are only included if they differ from initial values
@@ -123,7 +143,10 @@
 
     // Add tab fields only if they differ from initial values
     // Fields equal to initial values are excluded (not considered edits)
+    // Only process fields that belong to this tab (ignore other fields like id)
     for (const [key, newValue] of Object.entries(newValues)) {
+      if (!tabFieldNames.has(key)) continue;
+
       const initialValue = filteredInitialValues.value[key];
       if (!isEqual(newValue, initialValue)) {
         mergedValues[key] = newValue;
