@@ -104,26 +104,34 @@
   });
 
   /**
-   * Handles v-form model updates by computing the delta and merging with
-   * allValues (which includes fields outside the tab) before emitting.
-   * This prevents fields outside the tab interface from being cleared.
+   * Handles v-form model updates by building the complete set of edits.
+   * - Fields outside this tab are preserved from allValues
+   * - Fields inside this tab are only included if they differ from initial values
+   * - Fields reset to their initial value are excluded (no "unsaved changes" indicator)
    */
   function handleModelUpdate(newValues: Record<string, unknown>) {
-    const changes: Record<string, unknown> = {};
+    // Get the set of field names that belong to this tab
+    const tabFieldNames = new Set(fieldsInSection.value.map((f) => f.field));
 
-    // Compute what actually changed within this tab
-    for (const key of Object.keys(newValues)) {
-      if (!isEqual(filteredValues.value[key], newValues[key])) {
-        changes[key] = newValues[key];
+    // Start with values from outside this tab (preserve them)
+    const mergedValues: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(props.allValues)) {
+      if (!tabFieldNames.has(key)) {
+        mergedValues[key] = value;
       }
     }
 
-    if (Object.keys(changes).length > 0) {
-      // Merge changes with ALL values (including fields outside tabs)
-      const mergedValues = {
-        ...props.allValues,
-        ...changes,
-      };
+    // Add tab fields only if they differ from initial values
+    // Fields equal to initial values are excluded (not considered edits)
+    for (const [key, newValue] of Object.entries(newValues)) {
+      const initialValue = filteredInitialValues.value[key];
+      if (!isEqual(newValue, initialValue)) {
+        mergedValues[key] = newValue;
+      }
+    }
+
+    // Only emit if the result differs from current allValues
+    if (!isEqual(mergedValues, props.allValues)) {
       emit("apply", mergedValues);
     }
   }
